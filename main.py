@@ -1,5 +1,10 @@
 from pathlib import Path
 
+from edit_distance import (
+    build_edit_distance_matrix,
+    edit_distance,
+    normalize_comparison_term,
+)
 from engine import (
     build_inverted_index,
     build_bigram_index,
@@ -51,6 +56,7 @@ def main():
     print("11. Phrase search")
     print("12. Proximity search")
     print("13. Wildcard search")
+    print("14. Edit distance demonstration")
     choice = input("Choose an option: ")
 
     try:
@@ -188,6 +194,29 @@ def main():
                 ", ".join(details["matching_terms"]) or "None",
             )
             print("Wildcard search uses additional index processing.")
+        elif choice == "14":
+            word1 = input("First word: ")
+            word2 = input("Second word: ")
+            normalized_word1 = normalize_comparison_term(word1)
+            normalized_word2 = normalize_comparison_term(word2)
+            distance = edit_distance(normalized_word1, normalized_word2)
+            matrix = build_edit_distance_matrix(
+                normalized_word1, normalized_word2
+            )
+
+            print(f"Word 1: {normalized_word1}")
+            print(f"Word 2: {normalized_word2}")
+            print(f"Edit distance: {distance}")
+            print("DP matrix:")
+
+            column_labels = ['""'] + list(normalized_word2)
+            print("    " + " ".join(f"{label:>2}" for label in column_labels))
+
+            row_labels = ['""'] + list(normalized_word1)
+            for row_label, row_values in zip(row_labels, matrix):
+                values = " ".join(f"{value:>2}" for value in row_values)
+                print(f"{row_label:>2}  {values}")
+            return
         else:
             print("Invalid option.")
             return
