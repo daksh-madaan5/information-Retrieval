@@ -2,6 +2,7 @@ from pathlib import Path
 
 from engine import (
     build_inverted_index,
+    build_stemmed_index,
     load_documents,
     order_terms_by_frequency,
     search,
@@ -10,13 +11,17 @@ from engine import (
     search_boolean,
     search_not,
     search_or,
+    search_stemmed,
+    stem_query_term,
 )
+from preprocessing import remove_stop_words, stem_tokens, tokenize
 
 
 def main():
     documents_directory = Path(__file__).parent / "documents"
     documents = load_documents(documents_directory)
     inverted_index, document_frequency = build_inverted_index(documents)
+    stemmed_index = build_stemmed_index(documents)
 
     print(f"Indexed documents: {len(documents)}")
     print(f"Vocabulary size: {len(inverted_index)}")
@@ -27,6 +32,8 @@ def main():
     print("4. NOT search")
     print("5. Multi-term AND search")
     print("6. Boolean expression search")
+    print("7. Preprocessing demonstration")
+    print("8. Stemmed search")
     choice = input("Choose an option: ")
 
     try:
@@ -62,6 +69,27 @@ def main():
         elif choice == "6":
             query = input("Enter a Boolean expression: ")
             matches = search_boolean(query, inverted_index, documents)
+        elif choice == "7":
+            sentence = input("Enter a sentence: ")
+            tokens = tokenize(sentence)
+            tokens_without_stop_words = remove_stop_words(tokens)
+            stemmed_tokens = stem_tokens(tokens)
+
+            print("Original:")
+            print(sentence)
+            print("Tokens:")
+            print(tokens)
+            print("Without stop words:")
+            print(tokens_without_stop_words)
+            print("Stemmed:")
+            print(stemmed_tokens)
+            return
+        elif choice == "8":
+            term = input("Enter one search term: ")
+            query_stem = stem_query_term(term)
+            matches = search_stemmed(term, stemmed_index, documents)
+            print(f"Query: {term}")
+            print(f"Stem used: {query_stem}")
         else:
             print("Invalid option.")
             return

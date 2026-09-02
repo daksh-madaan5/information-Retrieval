@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from preprocessing import tokenize, tokenize_boolean_query
+from preprocessing import stem_tokens, tokenize, tokenize_boolean_query
 
 
 def load_documents(documents_directory):
@@ -40,6 +40,26 @@ def build_inverted_index(documents):
     return inverted_index, document_frequency
 
 
+def build_stemmed_index(documents):
+    """Build a separate inverted index containing Porter stems."""
+    stemmed_index = {}
+
+    for doc_id in sorted(documents):
+        tokens = tokenize(documents[doc_id]["text"])
+        stems = stem_tokens(tokens)
+        unique_stems = set(stems)
+
+        for stem in unique_stems:
+            if stem not in stemmed_index:
+                stemmed_index[stem] = []
+            stemmed_index[stem].append(doc_id)
+
+    for postings in stemmed_index.values():
+        postings.sort()
+
+    return stemmed_index
+
+
 def search(term, inverted_index):
     """Return document IDs for one normalized term using the index."""
     query_tokens = tokenize(term)
@@ -48,6 +68,29 @@ def search(term, inverted_index):
 
     normalized_term = query_tokens[0]
     return list(inverted_index.get(normalized_term, []))
+
+
+def stem_query_term(term):
+    """Normalize and stem exactly one query term."""
+    query_tokens = tokenize(term)
+    if len(query_tokens) != 1:
+        raise ValueError("Stemmed search supports exactly one alphanumeric term.")
+
+    return stem_tokens(query_tokens)[0]
+
+
+def search_stemmed(term, stemmed_index, documents):
+    """Search the separate stemmed index and return document metadata."""
+    query_stem = stem_query_term(term)
+    matching_ids = stemmed_index.get(query_stem, [])
+
+    matching_documents = []
+    for doc_id in matching_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
 
 
 def intersect_postings(postings1, postings2):
