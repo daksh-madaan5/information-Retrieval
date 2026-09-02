@@ -1,3 +1,4 @@
+from edit_distance import edit_distance
 from preprocessing import tokenize
 
 
@@ -100,3 +101,98 @@ def rank_candidates_by_jaccard(
     ranked_candidates = list(scores_by_term.items())
     ranked_candidates.sort(key=lambda item: (-item[1], item[0]))
     return ranked_candidates
+
+
+def rank_spelling_suggestions(
+    query_term,
+    trigram_index,
+    inverted_index,
+    minimum_jaccard=0.0,
+):
+    """Rank trigram candidates by edit distance, Jaccard, and term."""
+    normalized_query = normalize_spelling_term(query_term)
+    retrieved_candidates = get_ngram_spelling_candidates(
+        normalized_query, trigram_index
+    )
+    dictionary_candidates = []
+
+    for term in retrieved_candidates:
+        if term in inverted_index:
+            dictionary_candidates.append(term)
+
+    jaccard_ranking = rank_candidates_by_jaccard(
+        normalized_query,
+        dictionary_candidates,
+        minimum_score=minimum_jaccard,
+    )
+    ranked_suggestions = []
+
+    for term, jaccard_score in jaccard_ranking:
+        distance = edit_distance(normalized_query, term)
+        ranked_suggestions.append((term, distance, jaccard_score))
+
+    ranked_suggestions.sort(
+        key=lambda item: (item[1], -item[2], item[0])
+    )
+    return ranked_suggestions
+
+
+def suggest_spelling(
+    query_term,
+    trigram_index,
+    inverted_index,
+    max_edit_distance=2,
+    minimum_jaccard=0.0,
+):
+    """Return isolated-word spelling details and an optional suggestion."""
+    if (
+        not isinstance(max_edit_distance, int)
+        or isinstance(max_edit_distance, bool)
+        or max_edit_distance < 0
+    ):
+        raise ValueError("Maximum edit distance must be a non-negative integer.")
+
+    normalized_query = normalize_spelling_term(query_term)
+    details = {
+        "query": query_term,
+        "normalized_query": normalized_query,
+        "query_trigrams": term_trigrams(normalized_query),
+        "candidate_terms": [],
+        "ranked_suggestions": [],
+        "already_correct": normalized_query in inverted_index,
+        "suggestion": None,
+    }
+
+    if details["already_correct"]:
+        return details
+
+    candidate_terms = get_ngram_spelling_candidates(
+        normalized_query, trigram_index
+    )
+    details["candidate_terms"] = [
+        term for term in candidate_terms if term in inverted_index
+    ]
+
+    ranked_suggestions = rank_spelling_suggestions(
+        normalized_query,
+        trigram_index,
+        inverted_index,
+        minimum_jaccard=minimum_jaccard,
+    )
+
+    for term, distance, jaccard_score in ranked_suggestions:
+        details["ranked_suggestions"].append(
+            {
+                "term": term,
+                "edit_distance": distance,
+                "jaccard": jaccard_score,
+            }
+        )
+
+    if (
+        ranked_suggestions
+        and ranked_suggestions[0][1] <= max_edit_distance
+    ):
+        details["suggestion"] = ranked_suggestions[0][0]
+
+    return details

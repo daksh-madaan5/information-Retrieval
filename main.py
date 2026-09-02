@@ -35,6 +35,7 @@ from spelling import (
     get_ngram_spelling_candidates,
     normalize_spelling_term,
     rank_candidates_by_jaccard,
+    suggest_spelling,
     term_trigrams,
 )
 
@@ -66,6 +67,7 @@ def main():
     print("13. Wildcard search")
     print("14. Edit distance demonstration")
     print("15. Spelling candidate demonstration")
+    print("16. Spelling correction")
     choice = input("Choose an option: ")
 
     try:
@@ -251,6 +253,41 @@ def main():
             print("Jaccard ranking:")
             for term, score in ranking:
                 print(f"{term} -> {score:.4f}")
+            return
+        elif choice == "16":
+            query_term = input("Word: ")
+            details = suggest_spelling(
+                query_term, trigram_index, inverted_index
+            )
+
+            print("Query:", details["normalized_query"])
+
+            if details["already_correct"]:
+                print(
+                    f"{details['normalized_query']} is already in the dictionary."
+                )
+                return
+
+            print("Candidate terms:")
+            if details["candidate_terms"]:
+                for term in details["candidate_terms"]:
+                    print(term)
+            else:
+                print("None")
+
+            print("Ranking:")
+            for item in details["ranked_suggestions"]:
+                print(
+                    f"{item['term']}  edit distance = "
+                    f"{item['edit_distance']}, Jaccard = "
+                    f"{item['jaccard']:.4f}"
+                )
+
+            if details["suggestion"]:
+                print("Suggested correction:")
+                print(details["suggestion"])
+            else:
+                print("No spelling suggestion found.")
             return
         else:
             print("Invalid option.")
