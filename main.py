@@ -40,6 +40,7 @@ from spelling import (
     suggest_spelling,
     term_trigrams,
 )
+from soundex import build_soundex_index, search_soundex
 
 
 def main():
@@ -50,6 +51,7 @@ def main():
     positional_index = build_positional_index(documents)
     bigram_index = build_bigram_index(inverted_index)
     trigram_index = build_trigram_index(inverted_index)
+    soundex_index = build_soundex_index(inverted_index)
 
     print(f"Indexed documents: {len(documents)}")
     print(f"Vocabulary size: {len(inverted_index)}")
@@ -72,6 +74,7 @@ def main():
     print("16. Spelling correction")
     print("17. Weighted edit distance demonstration")
     print("18. Context-sensitive spelling demonstration")
+    print("19. Soundex search")
     choice = input("Choose an option: ")
 
     try:
@@ -355,6 +358,30 @@ def main():
             else:
                 print("No context-sensitive correction found.")
             return
+        elif choice == "19":
+            query_term = input("Enter one name or term: ")
+            details = {}
+            matches = search_soundex(
+                query_term,
+                soundex_index,
+                inverted_index,
+                documents,
+                details,
+            )
+
+            print("Query:", details["normalized_query"])
+            print("Soundex code:", details["soundex_code"])
+            print("Matching dictionary terms:")
+            if details["matching_terms"]:
+                for term in details["matching_terms"]:
+                    print(term)
+            else:
+                print("None")
+
+            if not matches:
+                print("Matching files:")
+                print("None")
+                return
         else:
             print("Invalid option.")
             return
