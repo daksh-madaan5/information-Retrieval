@@ -18,6 +18,7 @@ from engine import (
     search_not,
     search_or,
     search_phrase,
+    search_proximity,
     search_stemmed,
     stem_query_term,
 )
@@ -45,6 +46,7 @@ def main():
     print("9. Skip-pointer demonstration")
     print("10. Positional index lookup")
     print("11. Phrase search")
+    print("12. Proximity search")
     choice = input("Choose an option: ")
 
     try:
@@ -149,6 +151,16 @@ def main():
             matches = search_phrase(phrase, positional_index, documents)
             normalized_phrase = " ".join(tokenize(phrase))
             print(f'Phrase: "{normalized_phrase}"')
+        elif choice == "12":
+            term1 = input("First term: ")
+            term2 = input("Second term: ")
+            k = int(input("Maximum distance k: "))
+            matches = search_proximity(
+                term1, term2, k, positional_index, documents
+            )
+            normalized_term1 = tokenize(term1)[0]
+            normalized_term2 = tokenize(term2)[0]
+            print(f"Query: {normalized_term1} /{k} {normalized_term2}")
         else:
             print("Invalid option.")
             return

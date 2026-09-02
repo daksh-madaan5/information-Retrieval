@@ -221,6 +221,71 @@ def search_phrase(phrase, positional_index, documents):
     return matching_documents
 
 
+def positions_within_k(positions1, positions2, k):
+    """Return True when two distinct sorted positions are at most k apart."""
+    if not isinstance(k, int) or isinstance(k, bool) or k <= 0:
+        raise ValueError("Proximity distance k must be a positive integer.")
+
+    pointer1 = 0
+    pointer2 = 0
+
+    while pointer1 < len(positions1) and pointer2 < len(positions2):
+        position1 = positions1[pointer1]
+        position2 = positions2[pointer2]
+        distance = abs(position1 - position2)
+
+        if distance != 0 and distance <= k:
+            return True
+
+        if position1 <= position2:
+            pointer1 += 1
+        else:
+            pointer2 += 1
+
+    return False
+
+
+def search_proximity(term1, term2, k, positional_index, documents):
+    """Return documents where two terms occur within k token positions."""
+    if not isinstance(k, int) or isinstance(k, bool) or k <= 0:
+        raise ValueError("Proximity distance k must be a positive integer.")
+
+    query_tokens1 = tokenize(term1)
+    query_tokens2 = tokenize(term2)
+
+    if len(query_tokens1) != 1 or len(query_tokens2) != 1:
+        raise ValueError("Proximity search requires exactly two single terms.")
+
+    normalized_term1 = query_tokens1[0]
+    normalized_term2 = query_tokens2[0]
+
+    if (
+        normalized_term1 not in positional_index
+        or normalized_term2 not in positional_index
+    ):
+        return []
+
+    doc_ids1 = sorted(positional_index[normalized_term1])
+    doc_ids2 = sorted(positional_index[normalized_term2])
+    candidate_doc_ids = intersect_postings(doc_ids1, doc_ids2)
+    matching_doc_ids = []
+
+    for doc_id in candidate_doc_ids:
+        positions1 = positional_index[normalized_term1][doc_id]
+        positions2 = positional_index[normalized_term2][doc_id]
+
+        if positions_within_k(positions1, positions2, k):
+            matching_doc_ids.append(doc_id)
+
+    matching_documents = []
+    for doc_id in matching_doc_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
+
+
 def build_skip_pointers(postings):
     """Build deterministic index-to-index skips using sqrt spacing."""
     skip_pointers = {}
