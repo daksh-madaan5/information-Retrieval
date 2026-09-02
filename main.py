@@ -2,6 +2,7 @@ from pathlib import Path
 
 from engine import (
     build_inverted_index,
+    build_bigram_index,
     build_positional_index,
     build_skip_pointers,
     build_stemmed_index,
@@ -20,6 +21,7 @@ from engine import (
     search_phrase,
     search_proximity,
     search_stemmed,
+    search_wildcard,
     stem_query_term,
 )
 from preprocessing import remove_stop_words, stem_tokens, tokenize
@@ -31,6 +33,7 @@ def main():
     inverted_index, document_frequency = build_inverted_index(documents)
     stemmed_index = build_stemmed_index(documents)
     positional_index = build_positional_index(documents)
+    bigram_index = build_bigram_index(inverted_index)
 
     print(f"Indexed documents: {len(documents)}")
     print(f"Vocabulary size: {len(inverted_index)}")
@@ -47,6 +50,7 @@ def main():
     print("10. Positional index lookup")
     print("11. Phrase search")
     print("12. Proximity search")
+    print("13. Wildcard search")
     choice = input("Choose an option: ")
 
     try:
@@ -161,6 +165,27 @@ def main():
             normalized_term1 = tokenize(term1)[0]
             normalized_term2 = tokenize(term2)[0]
             print(f"Query: {normalized_term1} /{k} {normalized_term2}")
+        elif choice == "13":
+            pattern = input("Enter a wildcard pattern: ")
+            details = {}
+            matches = search_wildcard(
+                pattern,
+                bigram_index,
+                inverted_index,
+                documents,
+                details,
+            )
+            print(f"Wildcard query: {details['pattern']}")
+            print("Required bigrams:", ", ".join(details["required_bigrams"]))
+            print(
+                "Candidate dictionary terms:",
+                ", ".join(details["candidate_terms"]) or "None",
+            )
+            print(
+                "Matching dictionary terms:",
+                ", ".join(details["matching_terms"]) or "None",
+            )
+            print("Wildcard search uses additional index processing.")
         else:
             print("Invalid option.")
             return

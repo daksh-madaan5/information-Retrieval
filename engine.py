@@ -79,6 +79,36 @@ def build_positional_index(documents):
     return positional_index
 
 
+def term_bigrams(term):
+    """Return character bigrams after adding both word boundaries."""
+    boundary_term = "$" + term + "$"
+    bigrams = []
+
+    for index in range(len(boundary_term) - 1):
+        bigrams.append(boundary_term[index:index + 2])
+
+    return bigrams
+
+
+def build_bigram_index(inverted_index):
+    """Build bigram-to-dictionary-term postings from the normal index."""
+    bigram_index = {}
+
+    for term in sorted(inverted_index):
+        bigrams = term_bigrams(term)
+
+        for bigram in bigrams:
+            if bigram not in bigram_index:
+                bigram_index[bigram] = []
+            if term not in bigram_index[bigram]:
+                bigram_index[bigram].append(term)
+
+    for terms in bigram_index.values():
+        terms.sort()
+
+    return bigram_index
+
+
 def search(term, inverted_index):
     """Return document IDs for one normalized term using the index."""
     query_tokens = tokenize(term)
@@ -103,6 +133,128 @@ def get_term_positions(term, positional_index):
         result[doc_id] = list(positions)
 
     return result
+
+
+def normalize_wildcard_pattern(pattern):
+    """Normalize a pattern containing exactly one star wildcard."""
+    if not isinstance(pattern, str) or not pattern.strip():
+        raise ValueError("Wildcard pattern cannot be empty.")
+    if pattern.count("*") != 1:
+        raise ValueError("Wildcard pattern must contain exactly one '*'.")
+
+    prefix_text, suffix_text = pattern.split("*")
+    prefix_tokens = tokenize(prefix_text)
+    suffix_tokens = tokenize(suffix_text)
+
+    if len(prefix_tokens) > 1 or len(suffix_tokens) > 1:
+        raise ValueError("Each fixed wildcard part must be one term fragment.")
+
+    prefix = prefix_tokens[0] if prefix_tokens else ""
+    suffix = suffix_tokens[0] if suffix_tokens else ""
+
+    if not prefix and not suffix:
+        raise ValueError("A wildcard pattern cannot be '*' by itself.")
+
+    return prefix + "*" + suffix
+
+
+def wildcard_query_bigrams(pattern):
+    """Return required bigrams without crossing the wildcard boundary."""
+    normalized_pattern = normalize_wildcard_pattern(pattern)
+    prefix, suffix = normalized_pattern.split("*")
+    required_bigrams = []
+
+    if prefix:
+        boundary_prefix = "$" + prefix
+        for index in range(len(boundary_prefix) - 1):
+            bigram = boundary_prefix[index:index + 2]
+            if bigram not in required_bigrams:
+                required_bigrams.append(bigram)
+
+    if suffix:
+        boundary_suffix = suffix + "$"
+        for index in range(len(boundary_suffix) - 1):
+            bigram = boundary_suffix[index:index + 2]
+            if bigram not in required_bigrams:
+                required_bigrams.append(bigram)
+
+    return required_bigrams
+
+
+def get_wildcard_candidates(pattern, bigram_index):
+    """Intersect bigram term lists to obtain wildcard candidates."""
+    required_bigrams = wildcard_query_bigrams(pattern)
+    candidate_terms = None
+
+    for bigram in required_bigrams:
+        if bigram not in bigram_index:
+            return []
+
+        bigram_terms = set(bigram_index[bigram])
+        if candidate_terms is None:
+            candidate_terms = bigram_terms
+        else:
+            candidate_terms = candidate_terms.intersection(bigram_terms)
+
+        if not candidate_terms:
+            return []
+
+    return sorted(candidate_terms)
+
+
+def matches_wildcard(term, pattern):
+    """Check one candidate term against one normalized star pattern."""
+    normalized_pattern = normalize_wildcard_pattern(pattern)
+    prefix, suffix = normalized_pattern.split("*")
+    normalized_terms = tokenize(term)
+
+    if len(normalized_terms) != 1:
+        return False
+
+    normalized_term = normalized_terms[0]
+    minimum_length = len(prefix) + len(suffix)
+
+    return (
+        len(normalized_term) >= minimum_length
+        and normalized_term.startswith(prefix)
+        and normalized_term.endswith(suffix)
+    )
+
+
+def search_wildcard(
+    pattern, bigram_index, inverted_index, documents, details=None
+):
+    """Search normal postings after bigram generation and post-filtering."""
+    normalized_pattern = normalize_wildcard_pattern(pattern)
+    required_bigrams = wildcard_query_bigrams(normalized_pattern)
+    candidate_terms = get_wildcard_candidates(
+        normalized_pattern, bigram_index
+    )
+    matching_terms = []
+
+    for term in candidate_terms:
+        if matches_wildcard(term, normalized_pattern):
+            matching_terms.append(term)
+
+    matching_doc_ids = []
+    for term in matching_terms:
+        postings = inverted_index.get(term, [])
+        matching_doc_ids = union_postings(matching_doc_ids, postings)
+
+    if details is not None:
+        details["pattern"] = normalized_pattern
+        details["required_bigrams"] = list(required_bigrams)
+        details["candidate_terms"] = list(candidate_terms)
+        details["matching_terms"] = list(matching_terms)
+        details["matching_doc_ids"] = list(matching_doc_ids)
+
+    matching_documents = []
+    for doc_id in matching_doc_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
 
 
 def stem_query_term(term):
