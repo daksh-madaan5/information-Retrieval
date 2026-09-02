@@ -113,7 +113,7 @@ def test_stemmed_search_does_not_rescan_document_text():
 def test_stop_words_remain_in_both_indexes():
     _, inverted_index, _, stemmed_index = load_both_indexes()
 
-    assert inverted_index["the"] == [5]
-    assert stemmed_index["the"] == [5]
+    assert inverted_index["the"] == list(range(1, 11))
+    assert stemmed_index["the"] == list(range(1, 11))
     assert "and" in inverted_index
     assert "and" in stemmed_index

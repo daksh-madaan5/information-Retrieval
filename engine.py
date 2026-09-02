@@ -5,10 +5,26 @@ from pathlib import Path
 from preprocessing import stem_tokens, tokenize, tokenize_boolean_query
 
 
+def document_filename_sort_key(file_path):
+    """Sort numbered filenames naturally, so doc10 follows doc9."""
+    parts = re.split(r"(\d+)", file_path.name.casefold())
+    key = []
+
+    for part in parts:
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part))
+
+    return key
+
+
 def load_documents(documents_directory):
     """Load sorted .txt files and assign document IDs starting at 1."""
     documents_path = Path(documents_directory)
-    text_files = sorted(documents_path.glob("*.txt"), key=lambda path: path.name)
+    text_files = sorted(
+        documents_path.glob("*.txt"), key=document_filename_sort_key
+    )
 
     documents = {}
     for doc_id, file_path in enumerate(text_files, start=1):

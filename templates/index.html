@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Information Retrieval</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="page-shell">
+        <header class="page-header">
+            <h1>Information Retrieval</h1>
+            <p>Search across {{ document_count }} indexed documents</p>
+        </header>
+
+        <section class="search-section" aria-label="Document search">
+            <form method="post" action="{{ url_for('index') }}">
+                <div class="search-row">
+                    <input
+                        type="search"
+                        name="query"
+                        value="{{ query }}"
+                        placeholder="Search documents..."
+                        aria-label="Search query"
+                        autofocus
+                    >
+                    <button type="submit">Search</button>
+                </div>
+
+                <p class="syntax-help">
+                    Try: computer · comput* · "machine learning" · machine /4 computer
+                    <br>Boolean: computer AND machine
+                </p>
+
+                <details class="advanced">
+                    <summary>Advanced search</summary>
+                    <div class="mode-options">
+                        {% for mode in advanced_modes %}
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="advanced_mode"
+                                    value="{{ mode }}"
+                                    {% if advanced_mode == mode %}checked{% endif %}
+                                >
+                                {% if mode == 'context' %}
+                                    Context Spelling
+                                {% else %}
+                                    {{ mode|title }}
+                                {% endif %}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </details>
+
+                {% if advanced_mode != 'auto' %}
+                    <p class="active-mode">
+                        Active advanced mode:
+                        {% if advanced_mode == 'context' %}
+                            Context Spelling
+                        {% else %}
+                            {{ advanced_mode|title }}
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </form>
+        </section>
+
+        {% if searched %}
+            <section class="results-section" aria-live="polite">
+                <h2>Results</h2>
+
+                {% if error %}
+                    <div class="inline-error">
+                        <strong>Unable to search</strong>
+                        <p>{{ error }}</p>
+                    </div>
+                {% elif result %}
+                    <p class="detected-label">Detected: {{ result.detected_label }}</p>
+
+                    {% if result.special_type == 'spelling' %}
+                        <div class="special-result">
+                            {% if result.already_correct %}
+                                <p><strong>{{ result.normalized_query }}</strong> is already in the dictionary.</p>
+                            {% elif result.suggestion %}
+                                <span class="special-caption">Did you mean:</span>
+                                <strong class="suggestion">{{ result.suggestion }}</strong>
+                                {% if result.edit_distance is not none %}
+                                    <p>Edit distance: {{ result.edit_distance }}</p>
+                                {% endif %}
+                            {% else %}
+                                <p>No spelling suggestion found.</p>
+                            {% endif %}
+                        </div>
+
+                    {% elif result.special_type == 'context' %}
+                        <div class="special-result">
+                            {% if result.original_matching_doc_ids %}
+                                <p>Original phrase already matches. No correction needed.</p>
+                            {% elif result.suggestion %}
+                                <span class="special-caption">Suggested query:</span>
+                                <strong class="suggestion">{{ result.suggestion }}</strong>
+                                <p>Original phrase had no exact match.</p>
+                            {% else %}
+                                <p>No context-sensitive correction found.</p>
+                            {% endif %}
+                        </div>
+
+                    {% elif result.special_type == 'soundex' %}
+                        <div class="special-result compact">
+                            <p><strong>Soundex code:</strong> {{ result.soundex_code }}</p>
+                            <p><strong>Matching terms:</strong>
+                                {{ result.matching_terms|join(', ') if result.matching_terms else 'None' }}
+                            </p>
+                        </div>
+
+                    {% elif result.special_type == 'thesaurus' %}
+                        <div class="special-result compact">
+                            <p><strong>Expanded query:</strong> {{ result.expanded_terms|join(' OR ') }}</p>
+                        </div>
+                    {% endif %}
+
+                    {% if result.special_type not in ['spelling', 'context'] %}
+                        {% if result.documents %}
+                            <p class="result-count">
+                                {{ result.result_count }}
+                                {{ 'result' if result.result_count == 1 else 'results' }}
+                            </p>
+                            <div class="result-list">
+                                {% for document in result.documents %}
+                                    <article class="document-result">
+                                        <strong>{{ document.filename }}</strong>
+                                        <span>ID {{ document.doc_id }}</span>
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="empty-result">No matching documents found.</p>
+                        {% endif %}
+                    {% endif %}
+
+                    <details class="query-details">
+                        <summary>Query details</summary>
+                        <dl>
+                            {% for item in result.details %}
+                                <dt>{{ item.label }}</dt>
+                                <dd>{{ item.value }}</dd>
+                            {% endfor %}
+                        </dl>
+                    </details>
+                {% endif %}
+            </section>
+        {% endif %}
+    </main>
+</body>
+</html>

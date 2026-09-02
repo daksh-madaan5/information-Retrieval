@@ -33,9 +33,10 @@ def indexed_collection():
 def test_all_sample_documents_are_loaded():
     documents = load_documents(DOCUMENTS_DIRECTORY)
 
-    assert len(documents) == 6
+    assert len(documents) == 10
     assert documents[1]["filename"] == "doc1.txt"
     assert documents[6]["filename"] == "doc6.txt"
+    assert documents[10]["filename"] == "doc10.txt"
 
 
 def test_tokenization_lowercases_text():
@@ -253,12 +254,18 @@ def test_not_search_returns_expected_documents(indexed_collection):
 
     matches = search_not("computer", inverted_index, documents)
 
-    assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+    assert [document["doc_id"] for document in matches] == [
+        3, 4, 5, 6, 7, 8, 9, 10
+    ]
     assert [document["filename"] for document in matches] == [
         "doc3.txt",
         "doc4.txt",
         "doc5.txt",
         "doc6.txt",
+        "doc7.txt",
+        "doc8.txt",
+        "doc9.txt",
+        "doc10.txt",
     ]
 
 
@@ -267,7 +274,9 @@ def test_not_search_normalizes_case_and_punctuation(indexed_collection):
 
     matches = search_not("COMPUTER!", inverted_index, documents)
 
-    assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+    assert [document["doc_id"] for document in matches] == [
+        3, 4, 5, 6, 7, 8, 9, 10
+    ]
 
 
 def test_not_search_for_unknown_term_returns_all_documents(indexed_collection):
@@ -275,7 +284,7 @@ def test_not_search_for_unknown_term_returns_all_documents(indexed_collection):
 
     matches = search_not("nonexistentterm", inverted_index, documents)
 
-    assert [document["doc_id"] for document in matches] == [1, 2, 3, 4, 5, 6]
+    assert [document["doc_id"] for document in matches] == list(range(1, 11))
 
 
 def test_not_search_uses_index_without_rescanning_text(indexed_collection):
@@ -287,7 +296,9 @@ def test_not_search_uses_index_without_rescanning_text(indexed_collection):
 
     matches = search_not("computer", inverted_index, documents)
 
-    assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+    assert [document["doc_id"] for document in matches] == [
+        3, 4, 5, 6, 7, 8, 9, 10
+    ]
 
 
 def test_terms_are_ordered_by_increasing_document_frequency(indexed_collection):
@@ -451,7 +462,9 @@ def test_boolean_simple_not_expression(indexed_collection):
 
     matches = search_boolean("NOT computer", inverted_index, documents)
 
-    assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+    assert [document["doc_id"] for document in matches] == [
+        3, 4, 5, 6, 7, 8, 9, 10
+    ]
 
 
 def test_boolean_and_not_expression(indexed_collection):
@@ -491,7 +504,9 @@ def test_boolean_not_applied_to_parentheses(indexed_collection):
         "NOT (computer OR search)", inverted_index, documents
     )
 
-    assert [document["doc_id"] for document in matches] == [4, 5, 6]
+    assert [document["doc_id"] for document in matches] == [
+        4, 5, 6, 7, 8, 9, 10
+    ]
 
 
 def test_boolean_precedence_not_then_and_then_or(indexed_collection):

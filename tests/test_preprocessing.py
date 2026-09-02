@@ -40,7 +40,7 @@ def test_main_index_still_keeps_stop_words():
     documents = load_documents(DOCUMENTS_DIRECTORY)
     inverted_index, _ = build_inverted_index(documents)
 
-    assert inverted_index["the"] == [5]
+    assert inverted_index["the"] == list(range(1, 11))
     assert "and" in inverted_index
 
 
