@@ -30,6 +30,13 @@ from engine import (
     stem_query_term,
 )
 from preprocessing import remove_stop_words, stem_tokens, tokenize
+from spelling import (
+    build_trigram_index,
+    get_ngram_spelling_candidates,
+    normalize_spelling_term,
+    rank_candidates_by_jaccard,
+    term_trigrams,
+)
 
 
 def main():
@@ -39,6 +46,7 @@ def main():
     stemmed_index = build_stemmed_index(documents)
     positional_index = build_positional_index(documents)
     bigram_index = build_bigram_index(inverted_index)
+    trigram_index = build_trigram_index(inverted_index)
 
     print(f"Indexed documents: {len(documents)}")
     print(f"Vocabulary size: {len(inverted_index)}")
@@ -57,6 +65,7 @@ def main():
     print("12. Proximity search")
     print("13. Wildcard search")
     print("14. Edit distance demonstration")
+    print("15. Spelling candidate demonstration")
     choice = input("Choose an option: ")
 
     try:
@@ -216,6 +225,32 @@ def main():
             for row_label, row_values in zip(row_labels, matrix):
                 values = " ".join(f"{value:>2}" for value in row_values)
                 print(f"{row_label:>2}  {values}")
+            return
+        elif choice == "15":
+            query_term = input("Enter one term: ")
+            normalized_query = normalize_spelling_term(query_term)
+            query_trigrams = term_trigrams(normalized_query)
+            candidates = get_ngram_spelling_candidates(
+                normalized_query, trigram_index
+            )
+            ranking = rank_candidates_by_jaccard(
+                normalized_query, candidates
+            )
+
+            print("Normalized query:", normalized_query)
+            print("Trigrams:", ", ".join(query_trigrams))
+            print(
+                "Candidate dictionary terms:",
+                ", ".join(candidates) or "None",
+            )
+
+            if not ranking:
+                print("No candidates found.")
+                return
+
+            print("Jaccard ranking:")
+            for term, score in ranking:
+                print(f"{term} -> {score:.4f}")
             return
         else:
             print("Invalid option.")
