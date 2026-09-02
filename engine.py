@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 from preprocessing import stem_tokens, tokenize, tokenize_boolean_query
@@ -115,11 +116,94 @@ def intersect_postings(postings1, postings2):
     return result
 
 
+def build_skip_pointers(postings):
+    """Build deterministic index-to-index skips using sqrt spacing."""
+    skip_pointers = {}
+    skip_distance = int(math.sqrt(len(postings)))
+
+    if skip_distance < 2:
+        return skip_pointers
+
+    source_index = 0
+    destination_index = source_index + skip_distance
+
+    while destination_index < len(postings):
+        skip_pointers[source_index] = destination_index
+        source_index = destination_index
+        destination_index = source_index + skip_distance
+
+    return skip_pointers
+
+
+def intersect_postings_with_skips(
+    postings1, postings2, skips1, skips2, statistics=None
+):
+    """Intersect sorted postings, using safe skip jumps when possible."""
+    result = []
+    pointer1 = 0
+    pointer2 = 0
+    comparisons = 0
+    skip_jumps = 0
+
+    while pointer1 < len(postings1) and pointer2 < len(postings2):
+        comparisons += 1
+        doc_id1 = postings1[pointer1]
+        doc_id2 = postings2[pointer2]
+
+        if doc_id1 == doc_id2:
+            result.append(doc_id1)
+            pointer1 += 1
+            pointer2 += 1
+        elif doc_id1 < doc_id2:
+            if (
+                pointer1 in skips1
+                and postings1[skips1[pointer1]] <= doc_id2
+            ):
+                pointer1 = skips1[pointer1]
+                skip_jumps += 1
+            else:
+                pointer1 += 1
+        else:
+            if (
+                pointer2 in skips2
+                and postings2[skips2[pointer2]] <= doc_id1
+            ):
+                pointer2 = skips2[pointer2]
+                skip_jumps += 1
+            else:
+                pointer2 += 1
+
+    if statistics is not None:
+        statistics["comparisons"] = comparisons
+        statistics["skip_jumps"] = skip_jumps
+
+    return result
+
+
 def search_and(term1, term2, inverted_index, documents):
     """Return metadata for documents containing both query terms."""
     postings1 = search(term1, inverted_index)
     postings2 = search(term2, inverted_index)
     matching_ids = intersect_postings(postings1, postings2)
+
+    matching_documents = []
+    for doc_id in matching_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
+
+
+def search_and_with_skips(term1, term2, inverted_index, documents):
+    """Return AND matches using separately generated skip pointers."""
+    postings1 = search(term1, inverted_index)
+    postings2 = search(term2, inverted_index)
+    skips1 = build_skip_pointers(postings1)
+    skips2 = build_skip_pointers(postings2)
+    matching_ids = intersect_postings_with_skips(
+        postings1, postings2, skips1, skips2
+    )
 
     matching_documents = []
     for doc_id in matching_ids:

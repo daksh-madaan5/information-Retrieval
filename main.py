@@ -2,11 +2,15 @@ from pathlib import Path
 
 from engine import (
     build_inverted_index,
+    build_skip_pointers,
     build_stemmed_index,
+    intersect_postings,
+    intersect_postings_with_skips,
     load_documents,
     order_terms_by_frequency,
     search,
     search_and,
+    search_and_with_skips,
     search_and_multiple,
     search_boolean,
     search_not,
@@ -34,6 +38,7 @@ def main():
     print("6. Boolean expression search")
     print("7. Preprocessing demonstration")
     print("8. Stemmed search")
+    print("9. Skip-pointer demonstration")
     choice = input("Choose an option: ")
 
     try:
@@ -90,6 +95,27 @@ def main():
             matches = search_stemmed(term, stemmed_index, documents)
             print(f"Query: {term}")
             print(f"Stem used: {query_stem}")
+        elif choice == "9":
+            postings1 = [2, 4, 8, 16, 32, 64, 128]
+            postings2 = [31, 32, 100]
+            skips1 = build_skip_pointers(postings1)
+            skips2 = build_skip_pointers(postings2)
+            statistics = {}
+
+            normal_result = intersect_postings(postings1, postings2)
+            skip_result = intersect_postings_with_skips(
+                postings1, postings2, skips1, skips2, statistics
+            )
+
+            print("Postings 1:", postings1)
+            print("Skip pointers 1:", skips1)
+            print("Postings 2:", postings2)
+            print("Skip pointers 2:", skips2)
+            print("Normal AND result:", normal_result)
+            print("Skip-pointer AND result:", skip_result)
+            print("Comparisons:", statistics["comparisons"])
+            print("Skip jumps:", statistics["skip_jumps"])
+            return
         else:
             print("Invalid option.")
             return
