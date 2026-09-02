@@ -17,6 +17,7 @@ from engine import (
     search_boolean,
     search_not,
     search_or,
+    search_phrase,
     search_stemmed,
     stem_query_term,
 )
@@ -43,6 +44,7 @@ def main():
     print("8. Stemmed search")
     print("9. Skip-pointer demonstration")
     print("10. Positional index lookup")
+    print("11. Phrase search")
     choice = input("Choose an option: ")
 
     try:
@@ -142,6 +144,11 @@ def main():
                 for position, token in enumerate(tokens):
                     print(f"{position}: {token}")
             return
+        elif choice == "11":
+            phrase = input("Enter a phrase: ")
+            matches = search_phrase(phrase, positional_index, documents)
+            normalized_phrase = " ".join(tokenize(phrase))
+            print(f'Phrase: "{normalized_phrase}"')
         else:
             print("Invalid option.")
             return
