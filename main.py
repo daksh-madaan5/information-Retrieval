@@ -41,6 +41,7 @@ from spelling import (
     term_trigrams,
 )
 from soundex import build_soundex_index, search_soundex
+from thesaurus import search_with_thesaurus
 
 
 def main():
@@ -75,6 +76,7 @@ def main():
     print("17. Weighted edit distance demonstration")
     print("18. Context-sensitive spelling demonstration")
     print("19. Soundex search")
+    print("20. WordNet thesaurus/query expansion")
     choice = input("Choose an option: ")
 
     try:
@@ -382,10 +384,48 @@ def main():
                 print("Matching files:")
                 print("None")
                 return
+        elif choice == "20":
+            query_term = input("Enter one term: ")
+            details = {}
+            matches = search_with_thesaurus(
+                query_term,
+                inverted_index,
+                documents,
+                details=details,
+            )
+            ordinary_doc_ids = search(query_term, inverted_index)
+
+            print("Original query:", details["normalized_query"])
+            print("WordNet synonyms:")
+            if details["wordnet_synonyms"]:
+                print(", ".join(details["wordnet_synonyms"]))
+            else:
+                print("None")
+
+            print(
+                "Indexed expansion:",
+                " OR ".join(details["indexed_expansion_terms"]),
+            )
+            print("Ordinary single-term matching files:")
+            if ordinary_doc_ids:
+                for doc_id in ordinary_doc_ids:
+                    print(f"{doc_id}: {documents[doc_id]['filename']}")
+            else:
+                print("None")
+
+            print("Matching files (expanded query):")
+            if matches:
+                for document in matches:
+                    print(
+                        f"{document['doc_id']}: {document['filename']}"
+                    )
+            else:
+                print("None")
+            return
         else:
             print("Invalid option.")
             return
-    except ValueError as error:
+    except (ValueError, LookupError) as error:
         print(error)
         return
 
