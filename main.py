@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from context_spelling import suggest_context_correction
 from edit_distance import (
     build_edit_distance_matrix,
     edit_distance,
@@ -70,6 +71,7 @@ def main():
     print("15. Spelling candidate demonstration")
     print("16. Spelling correction")
     print("17. Weighted edit distance demonstration")
+    print("18. Context-sensitive spelling demonstration")
     choice = input("Choose an option: ")
 
     try:
@@ -317,6 +319,41 @@ def main():
             print("Word 2:", normalized_word2)
             print("Standard edit distance:", standard_distance)
             print("Weighted edit distance:", weighted_distance)
+            return
+        elif choice == "18":
+            query_phrase = input("Phrase: ")
+            details = suggest_context_correction(
+                query_phrase,
+                positional_index,
+                inverted_index,
+                documents,
+            )
+
+            print("Original query:", details["original_phrase"])
+            print(
+                "Original phrase matches:",
+                len(details["original_matching_doc_ids"]),
+            )
+
+            if details["original_matching_doc_ids"]:
+                print("Original phrase already matches.")
+                print("No correction needed.")
+                return
+
+            print("Context alternatives with hits:")
+            if details["successful_alternatives"]:
+                for alternative in details["successful_alternatives"]:
+                    print(
+                        f"{alternative['phrase']} -> "
+                        f"{alternative['hit_count']} document(s)"
+                    )
+            else:
+                print("None")
+
+            if details["suggestion"]:
+                print("Suggested query:", details["suggestion"])
+            else:
+                print("No context-sensitive correction found.")
             return
         else:
             print("Invalid option.")
