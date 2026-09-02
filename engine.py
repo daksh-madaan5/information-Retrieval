@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from preprocessing import tokenize
+from preprocessing import tokenize, tokenize_boolean_query
 
 
 def load_documents(documents_directory):
@@ -210,6 +210,85 @@ def search_and_multiple(
 
         if not matching_ids:
             return []
+
+    matching_documents = []
+    for doc_id in matching_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
+
+
+def search_boolean(query, inverted_index, documents):
+    """Evaluate a Boolean query with precedence NOT, then AND, then OR."""
+    query_tokens = tokenize_boolean_query(query)
+    all_doc_ids = sorted(documents)
+    position = 0
+
+    if not query_tokens:
+        raise ValueError("Boolean query cannot be empty.")
+
+    def parse_primary():
+        nonlocal position
+
+        if position >= len(query_tokens):
+            raise ValueError("Expected a term or opening parenthesis.")
+
+        token = query_tokens[position]
+
+        if token == "(":
+            position += 1
+            result = parse_or()
+
+            if position >= len(query_tokens) or query_tokens[position] != ")":
+                raise ValueError("Missing closing parenthesis.")
+
+            position += 1
+            return result
+
+        if token in ("AND", "OR", "NOT", ")"):
+            raise ValueError("Expected a term or opening parenthesis.")
+
+        position += 1
+        return search(token, inverted_index)
+
+    def parse_not():
+        nonlocal position
+
+        if position < len(query_tokens) and query_tokens[position] == "NOT":
+            position += 1
+            postings = parse_not()
+            return complement_postings(all_doc_ids, postings)
+
+        return parse_primary()
+
+    def parse_and():
+        nonlocal position
+        result = parse_not()
+
+        while position < len(query_tokens) and query_tokens[position] == "AND":
+            position += 1
+            right_postings = parse_not()
+            result = intersect_postings(result, right_postings)
+
+        return result
+
+    def parse_or():
+        nonlocal position
+        result = parse_and()
+
+        while position < len(query_tokens) and query_tokens[position] == "OR":
+            position += 1
+            right_postings = parse_and()
+            result = union_postings(result, right_postings)
+
+        return result
+
+    matching_ids = parse_or()
+
+    if position != len(query_tokens):
+        raise ValueError(f"Unexpected token: {query_tokens[position]}")
 
     matching_documents = []
     for doc_id in matching_ids:

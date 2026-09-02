@@ -12,11 +12,12 @@ from engine import (
     search,
     search_and,
     search_and_multiple,
+    search_boolean,
     search_not,
     search_or,
     union_postings,
 )
-from preprocessing import tokenize
+from preprocessing import tokenize, tokenize_boolean_query
 
 
 DOCUMENTS_DIRECTORY = Path(__file__).parent.parent / "documents"
@@ -421,3 +422,168 @@ def test_multi_term_and_reuses_intersect_postings(indexed_collection, monkeypatc
 
     assert [document["doc_id"] for document in matches] == [2]
     assert len(calls) == 2
+
+
+def test_boolean_query_tokenizer():
+    tokens = tokenize_boolean_query("(Computer or machine) AND learning")
+
+    assert tokens == ["(", "computer", "OR", "machine", ")", "AND", "learning"]
+
+
+def test_boolean_simple_and_expression(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("computer AND search", inverted_index, documents)
+
+    assert [document["doc_id"] for document in matches] == [1]
+
+
+def test_boolean_simple_or_expression(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("computer OR search", inverted_index, documents)
+
+    assert [document["doc_id"] for document in matches] == [1, 2, 3]
+
+
+def test_boolean_simple_not_expression(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("NOT computer", inverted_index, documents)
+
+    assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+
+
+def test_boolean_and_not_expression(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("computer AND NOT search", inverted_index, documents)
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_boolean_expression_with_parentheses(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean(
+        "(computer OR search) AND machine", inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_boolean_expression_with_nested_parentheses(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean(
+        "((computer OR search) AND (machine OR information))",
+        inverted_index,
+        documents,
+    )
+
+    assert [document["doc_id"] for document in matches] == [2, 3]
+
+
+def test_boolean_not_applied_to_parentheses(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean(
+        "NOT (computer OR search)", inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [4, 5, 6]
+
+
+def test_boolean_precedence_not_then_and_then_or(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean(
+        "computer OR machine AND NOT search", inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [1, 2]
+
+
+def test_boolean_lowercase_operators(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean(
+        "computer and not search", inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_boolean_unknown_term(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("nonexistentterm", inverted_index, documents)
+
+    assert matches == []
+
+
+def test_boolean_missing_parenthesis_is_invalid(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    with pytest.raises(ValueError, match="Missing closing parenthesis"):
+        search_boolean("(computer OR search", inverted_index, documents)
+
+
+def test_boolean_trailing_operator_is_invalid(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    with pytest.raises(ValueError, match="Expected a term"):
+        search_boolean("computer AND", inverted_index, documents)
+
+
+def test_boolean_empty_query_is_invalid(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    with pytest.raises(ValueError, match="cannot be empty"):
+        search_boolean("", inverted_index, documents)
+
+
+def test_boolean_result_remains_sorted(indexed_collection):
+    documents, inverted_index, _ = indexed_collection
+
+    matches = search_boolean("computer OR search", inverted_index, documents)
+    matching_ids = [document["doc_id"] for document in matches]
+
+    assert matching_ids == [1, 2, 3]
+    assert matching_ids == sorted(matching_ids)
+
+
+def test_boolean_evaluation_reuses_postings_algorithms(
+    indexed_collection, monkeypatch
+):
+    documents, inverted_index, _ = indexed_collection
+    original_intersect = engine.intersect_postings
+    original_union = engine.union_postings
+    original_complement = engine.complement_postings
+    calls = []
+
+    def recording_intersect(postings1, postings2):
+        calls.append("AND")
+        return original_intersect(postings1, postings2)
+
+    def recording_union(postings1, postings2):
+        calls.append("OR")
+        return original_union(postings1, postings2)
+
+    def recording_complement(all_doc_ids, postings):
+        calls.append("NOT")
+        return original_complement(all_doc_ids, postings)
+
+    monkeypatch.setattr(engine, "intersect_postings", recording_intersect)
+    monkeypatch.setattr(engine, "union_postings", recording_union)
+    monkeypatch.setattr(engine, "complement_postings", recording_complement)
+
+    for document in documents.values():
+        document["text"] = "This changed text must not be searched."
+
+    matches = search_boolean(
+        "computer OR machine AND NOT search", inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [1, 2]
+    assert calls == ["NOT", "AND", "OR"]

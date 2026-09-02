@@ -7,6 +7,7 @@ from engine import (
     search,
     search_and,
     search_and_multiple,
+    search_boolean,
     search_not,
     search_or,
 )
@@ -25,6 +26,7 @@ def main():
     print("3. OR search")
     print("4. NOT search")
     print("5. Multi-term AND search")
+    print("6. Boolean expression search")
     choice = input("Choose an option: ")
 
     try:
@@ -57,6 +59,9 @@ def main():
             matches = search_and_multiple(
                 terms, inverted_index, document_frequency, documents
             )
+        elif choice == "6":
+            query = input("Enter a Boolean expression: ")
+            matches = search_boolean(query, inverted_index, documents)
         else:
             print("Invalid option.")
             return
