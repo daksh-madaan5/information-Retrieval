@@ -4,6 +4,7 @@ from edit_distance import (
     build_edit_distance_matrix,
     edit_distance,
     normalize_comparison_term,
+    weighted_edit_distance,
 )
 from engine import (
     build_inverted_index,
@@ -68,6 +69,7 @@ def main():
     print("14. Edit distance demonstration")
     print("15. Spelling candidate demonstration")
     print("16. Spelling correction")
+    print("17. Weighted edit distance demonstration")
     choice = input("Choose an option: ")
 
     try:
@@ -288,6 +290,33 @@ def main():
                 print(details["suggestion"])
             else:
                 print("No spelling suggestion found.")
+            return
+        elif choice == "17":
+            word1 = input("First word: ")
+            word2 = input("Second word: ")
+            normalized_word1 = normalize_comparison_term(word1)
+            normalized_word2 = normalize_comparison_term(word2)
+            demonstration_weights = {
+                ("m", "n"): 0.5,
+                ("n", "m"): 0.5,
+            }
+
+            standard_distance = edit_distance(
+                normalized_word1, normalized_word2
+            )
+            weighted_distance = weighted_edit_distance(
+                normalized_word1,
+                normalized_word2,
+                replacement_costs=demonstration_weights,
+            )
+
+            print("Demonstration weights:")
+            print("m <-> n replacement cost = 0.5")
+            print("other replacements = 1.0")
+            print("Word 1:", normalized_word1)
+            print("Word 2:", normalized_word2)
+            print("Standard edit distance:", standard_distance)
+            print("Weighted edit distance:", weighted_distance)
             return
         else:
             print("Invalid option.")
