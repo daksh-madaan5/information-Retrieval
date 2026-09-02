@@ -22,7 +22,6 @@ from engine import (
     order_terms_by_frequency,
     search,
     search_and,
-    search_and_with_skips,
     search_and_multiple,
     search_boolean,
     search_not,
