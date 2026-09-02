@@ -8,6 +8,7 @@ from engine import (
     get_wildcard_candidates,
     load_documents,
     matches_wildcard,
+    normalize_wildcard_pattern,
     search_wildcard,
     term_bigrams,
     wildcard_query_bigrams,
@@ -186,7 +187,7 @@ def test_wildcard_search_does_not_rescan_raw_text():
     assert [document["doc_id"] for document in matches] == [1, 2, 3]
 
 
-@pytest.mark.parametrize("pattern", ["computer", "*", "co**ter", "pro*cess*ing"])
+@pytest.mark.parametrize("pattern", ["computer", "*", "**", "***"])
 def test_invalid_wildcard_patterns_are_rejected(pattern):
     documents, inverted_index, bigram_index = make_synthetic_collection()
 
@@ -224,3 +225,132 @@ def test_real_corpus_prefix_wildcard():
     )
 
     assert [document["doc_id"] for document in matches] == [1, 2]
+
+
+def test_two_wildcards_match_expected_term():
+    inverted_index = {
+        "computational": [1],
+        "comptixional": [2],
+        "computer": [3],
+    }
+    bigram_index = build_bigram_index(inverted_index)
+
+    candidates = get_wildcard_candidates("comp*tion*al", bigram_index)
+    matching_terms = [
+        term
+        for term in candidates
+        if matches_wildcard(term, "comp*tion*al")
+    ]
+
+    assert matching_terms == ["computational"]
+
+
+def test_three_wildcards_are_supported():
+    assert matches_wildcard("computational", "c*m*put*al") is True
+    assert matches_wildcard("computer", "c*m*put*al") is False
+
+
+def test_wildcards_at_both_boundaries():
+    _, inverted_index, bigram_index = make_synthetic_collection()
+
+    candidates = get_wildcard_candidates("*put*", bigram_index)
+    matching_terms = [
+        term for term in candidates if matches_wildcard(term, "*put*")
+    ]
+
+    assert matching_terms == ["computational", "computer", "computing"]
+
+
+def test_multiple_wildcard_boundary_bigrams_are_correct():
+    bigrams = wildcard_query_bigrams("comp*tion*al")
+
+    assert bigrams == [
+        "$c",
+        "co",
+        "om",
+        "mp",
+        "ti",
+        "io",
+        "on",
+        "al",
+        "l$",
+    ]
+
+
+def test_both_boundary_wildcards_omit_word_boundaries():
+    bigrams = wildcard_query_bigrams("*put*")
+
+    assert bigrams == ["pu", "ut"]
+    assert "$p" not in bigrams
+    assert "t$" not in bigrams
+
+
+def test_no_bigram_crosses_multiple_wildcard_boundaries():
+    bigrams = wildcard_query_bigrams("comp*tion*al")
+
+    assert "pt" not in bigrams
+    assert "na" not in bigrams
+
+
+def test_middle_fixed_piece_generates_internal_bigrams():
+    bigrams = wildcard_query_bigrams("comp*tion*al")
+
+    assert "ti" in bigrams
+    assert "io" in bigrams
+    assert "on" in bigrams
+
+
+def test_multiple_wildcard_post_filter_rejects_false_candidate():
+    inverted_index = {"computational": [1], "comptixional": [2]}
+    bigram_index = build_bigram_index(inverted_index)
+
+    candidates = get_wildcard_candidates("comp*tion*al", bigram_index)
+    matching_terms = [
+        term
+        for term in candidates
+        if matches_wildcard(term, "comp*tion*al")
+    ]
+
+    assert candidates == ["comptixional", "computational"]
+    assert matching_terms == ["computational"]
+
+
+def test_consecutive_wildcards_are_normalized_deterministically():
+    assert normalize_wildcard_pattern("comp**ing") == "comp*ing"
+    assert matches_wildcard("computing", "comp**ing") is True
+
+
+def test_one_character_middle_piece_uses_dictionary_universe():
+    inverted_index = {"abc": [1], "axbyc": [2], "ac": [3]}
+    bigram_index = build_bigram_index(inverted_index)
+
+    candidates = get_wildcard_candidates("*b*", bigram_index)
+    matching_terms = [
+        term for term in candidates if matches_wildcard(term, "*b*")
+    ]
+
+    assert candidates == ["abc", "ac", "axbyc"]
+    assert matching_terms == ["abc", "axbyc"]
+
+
+def test_multiple_wildcard_search_returns_each_document_once():
+    documents, inverted_index, bigram_index = make_synthetic_collection()
+
+    matches = search_wildcard(
+        "*put*", bigram_index, inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [1, 2, 3]
+
+
+def test_multiple_wildcard_search_does_not_scan_raw_text():
+    documents, inverted_index, bigram_index = make_synthetic_collection()
+
+    for document in documents.values():
+        document["text"] = ""
+
+    matches = search_wildcard(
+        "comp*tion*al", bigram_index, inverted_index, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [3]

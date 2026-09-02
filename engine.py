@@ -1,4 +1,5 @@
 import math
+import re
 from pathlib import Path
 
 from preprocessing import stem_tokens, tokenize, tokenize_boolean_query
@@ -136,45 +137,54 @@ def get_term_positions(term, positional_index):
 
 
 def normalize_wildcard_pattern(pattern):
-    """Normalize a pattern containing exactly one star wildcard."""
+    """Normalize a pattern containing one or more star wildcards."""
     if not isinstance(pattern, str) or not pattern.strip():
         raise ValueError("Wildcard pattern cannot be empty.")
-    if pattern.count("*") != 1:
-        raise ValueError("Wildcard pattern must contain exactly one '*'.")
+    if "*" not in pattern:
+        raise ValueError("Wildcard pattern must contain at least one '*'.")
 
-    prefix_text, suffix_text = pattern.split("*")
-    prefix_tokens = tokenize(prefix_text)
-    suffix_tokens = tokenize(suffix_text)
+    raw_parts = pattern.split("*")
+    normalized_parts = []
 
-    if len(prefix_tokens) > 1 or len(suffix_tokens) > 1:
-        raise ValueError("Each fixed wildcard part must be one term fragment.")
+    for raw_part in raw_parts:
+        part_tokens = tokenize(raw_part)
+        if len(part_tokens) > 1:
+            raise ValueError(
+                "Each fixed wildcard part must be one term fragment."
+            )
+        normalized_parts.append(part_tokens[0] if part_tokens else "")
 
-    prefix = prefix_tokens[0] if prefix_tokens else ""
-    suffix = suffix_tokens[0] if suffix_tokens else ""
+    normalized_pattern = "*".join(normalized_parts)
+    while "**" in normalized_pattern:
+        normalized_pattern = normalized_pattern.replace("**", "*")
 
-    if not prefix and not suffix:
-        raise ValueError("A wildcard pattern cannot be '*' by itself.")
+    if not normalized_pattern.replace("*", ""):
+        raise ValueError("A wildcard pattern needs a fixed term fragment.")
 
-    return prefix + "*" + suffix
+    return normalized_pattern
 
 
 def wildcard_query_bigrams(pattern):
-    """Return required bigrams without crossing the wildcard boundary."""
+    """Return required bigrams without crossing wildcard boundaries."""
     normalized_pattern = normalize_wildcard_pattern(pattern)
-    prefix, suffix = normalized_pattern.split("*")
+    fixed_parts = normalized_pattern.split("*")
     required_bigrams = []
 
-    if prefix:
-        boundary_prefix = "$" + prefix
-        for index in range(len(boundary_prefix) - 1):
-            bigram = boundary_prefix[index:index + 2]
-            if bigram not in required_bigrams:
-                required_bigrams.append(bigram)
+    for part_index, fixed_part in enumerate(fixed_parts):
+        if not fixed_part:
+            continue
 
-    if suffix:
-        boundary_suffix = suffix + "$"
-        for index in range(len(boundary_suffix) - 1):
-            bigram = boundary_suffix[index:index + 2]
+        text_for_bigrams = fixed_part
+        if part_index == 0 and not normalized_pattern.startswith("*"):
+            text_for_bigrams = "$" + text_for_bigrams
+        if (
+            part_index == len(fixed_parts) - 1
+            and not normalized_pattern.endswith("*")
+        ):
+            text_for_bigrams = text_for_bigrams + "$"
+
+        for character_index in range(len(text_for_bigrams) - 1):
+            bigram = text_for_bigrams[character_index:character_index + 2]
             if bigram not in required_bigrams:
                 required_bigrams.append(bigram)
 
@@ -184,6 +194,14 @@ def wildcard_query_bigrams(pattern):
 def get_wildcard_candidates(pattern, bigram_index):
     """Intersect bigram term lists to obtain wildcard candidates."""
     required_bigrams = wildcard_query_bigrams(pattern)
+
+    if not required_bigrams:
+        all_dictionary_terms = set()
+        for terms in bigram_index.values():
+            for term in terms:
+                all_dictionary_terms.add(term)
+        return sorted(all_dictionary_terms)
+
     candidate_terms = None
 
     for bigram in required_bigrams:
@@ -203,22 +221,17 @@ def get_wildcard_candidates(pattern, bigram_index):
 
 
 def matches_wildcard(term, pattern):
-    """Check one candidate term against one normalized star pattern."""
+    """Check one candidate term against the complete wildcard pattern."""
     normalized_pattern = normalize_wildcard_pattern(pattern)
-    prefix, suffix = normalized_pattern.split("*")
     normalized_terms = tokenize(term)
 
     if len(normalized_terms) != 1:
         return False
 
-    normalized_term = normalized_terms[0]
-    minimum_length = len(prefix) + len(suffix)
+    escaped_pattern = re.escape(normalized_pattern)
+    regular_expression = escaped_pattern.replace(r"\*", ".*")
 
-    return (
-        len(normalized_term) >= minimum_length
-        and normalized_term.startswith(prefix)
-        and normalized_term.endswith(suffix)
-    )
+    return re.fullmatch(regular_expression, normalized_terms[0]) is not None
 
 
 def search_wildcard(
@@ -243,6 +256,9 @@ def search_wildcard(
 
     if details is not None:
         details["pattern"] = normalized_pattern
+        details["fixed_parts"] = [
+            part for part in normalized_pattern.split("*") if part
+        ]
         details["required_bigrams"] = list(required_bigrams)
         details["candidate_terms"] = list(candidate_terms)
         details["matching_terms"] = list(matching_terms)

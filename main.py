@@ -166,6 +166,7 @@ def main():
             normalized_term2 = tokenize(term2)[0]
             print(f"Query: {normalized_term1} /{k} {normalized_term2}")
         elif choice == "13":
+            print("Use one or more '*' characters as wildcards.")
             pattern = input("Enter a wildcard pattern: ")
             details = {}
             matches = search_wildcard(
@@ -176,6 +177,7 @@ def main():
                 details,
             )
             print(f"Wildcard query: {details['pattern']}")
+            print("Fixed parts:", " | ".join(details["fixed_parts"]))
             print("Required bigrams:", ", ".join(details["required_bigrams"]))
             print(
                 "Candidate dictionary terms:",
