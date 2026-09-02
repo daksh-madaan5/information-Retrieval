@@ -2,10 +2,12 @@ from pathlib import Path
 
 from engine import (
     build_inverted_index,
+    build_positional_index,
     build_skip_pointers,
     build_stemmed_index,
     intersect_postings,
     intersect_postings_with_skips,
+    get_term_positions,
     load_documents,
     order_terms_by_frequency,
     search,
@@ -26,6 +28,7 @@ def main():
     documents = load_documents(documents_directory)
     inverted_index, document_frequency = build_inverted_index(documents)
     stemmed_index = build_stemmed_index(documents)
+    positional_index = build_positional_index(documents)
 
     print(f"Indexed documents: {len(documents)}")
     print(f"Vocabulary size: {len(inverted_index)}")
@@ -39,6 +42,7 @@ def main():
     print("7. Preprocessing demonstration")
     print("8. Stemmed search")
     print("9. Skip-pointer demonstration")
+    print("10. Positional index lookup")
     choice = input("Choose an option: ")
 
     try:
@@ -115,6 +119,28 @@ def main():
             print("Skip-pointer AND result:", skip_result)
             print("Comparisons:", statistics["comparisons"])
             print("Skip jumps:", statistics["skip_jumps"])
+            return
+        elif choice == "10":
+            term = input("Enter one term: ")
+            positions_by_document = get_term_positions(
+                term, positional_index
+            )
+
+            if not positions_by_document:
+                print("No occurrences found.")
+                return
+
+            print(f"Term: {tokenize(term)[0]}")
+            for doc_id, positions in positions_by_document.items():
+                print(documents[doc_id]["filename"])
+                position_text = ", ".join(
+                    str(position) for position in positions
+                )
+                print(f"Positions: {position_text}")
+                print("Token sequence:")
+                tokens = tokenize(documents[doc_id]["text"])
+                for position, token in enumerate(tokens):
+                    print(f"{position}: {token}")
             return
         else:
             print("Invalid option.")

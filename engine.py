@@ -61,6 +61,24 @@ def build_stemmed_index(documents):
     return stemmed_index
 
 
+def build_positional_index(documents):
+    """Build an unstemmed index of zero-based token positions."""
+    positional_index = {}
+
+    for doc_id in sorted(documents):
+        tokens = tokenize(documents[doc_id]["text"])
+
+        for position, term in enumerate(tokens):
+            if term not in positional_index:
+                positional_index[term] = {}
+            if doc_id not in positional_index[term]:
+                positional_index[term][doc_id] = []
+
+            positional_index[term][doc_id].append(position)
+
+    return positional_index
+
+
 def search(term, inverted_index):
     """Return document IDs for one normalized term using the index."""
     query_tokens = tokenize(term)
@@ -69,6 +87,22 @@ def search(term, inverted_index):
 
     normalized_term = query_tokens[0]
     return list(inverted_index.get(normalized_term, []))
+
+
+def get_term_positions(term, positional_index):
+    """Return docID-to-position mappings for exactly one normalized term."""
+    query_tokens = tokenize(term)
+    if len(query_tokens) != 1:
+        raise ValueError("Position lookup supports exactly one alphanumeric term.")
+
+    normalized_term = query_tokens[0]
+    stored_positions = positional_index.get(normalized_term, {})
+    result = {}
+
+    for doc_id, positions in stored_positions.items():
+        result[doc_id] = list(positions)
+
+    return result
 
 
 def stem_query_term(term):
