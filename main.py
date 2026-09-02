@@ -3,8 +3,10 @@ from pathlib import Path
 from engine import (
     build_inverted_index,
     load_documents,
+    order_terms_by_frequency,
     search,
     search_and,
+    search_and_multiple,
     search_not,
     search_or,
 )
@@ -22,6 +24,7 @@ def main():
     print("2. AND search")
     print("3. OR search")
     print("4. NOT search")
+    print("5. Multi-term AND search")
     choice = input("Choose an option: ")
 
     try:
@@ -44,6 +47,16 @@ def main():
         elif choice == "4":
             term = input("Enter one term to exclude: ")
             matches = search_not(term, inverted_index, documents)
+        elif choice == "5":
+            query = input("Enter terms separated by spaces: ")
+            terms = query.split()
+            processing_order = order_terms_by_frequency(
+                terms, document_frequency
+            )
+            print("Processing order:", " -> ".join(processing_order))
+            matches = search_and_multiple(
+                terms, inverted_index, document_frequency, documents
+            )
         else:
             print("Invalid option.")
             return

@@ -1,14 +1,17 @@
 from pathlib import Path
 
 import pytest
+import engine
 
 from engine import (
     build_inverted_index,
     complement_postings,
     intersect_postings,
     load_documents,
+    order_terms_by_frequency,
     search,
     search_and,
+    search_and_multiple,
     search_not,
     search_or,
     union_postings,
@@ -284,3 +287,137 @@ def test_not_search_uses_index_without_rescanning_text(indexed_collection):
     matches = search_not("computer", inverted_index, documents)
 
     assert [document["doc_id"] for document in matches] == [3, 4, 5, 6]
+
+
+def test_terms_are_ordered_by_increasing_document_frequency(indexed_collection):
+    _, _, document_frequency = indexed_collection
+
+    ordered_terms = order_terms_by_frequency(
+        ["computer", "machine", "learning"], document_frequency
+    )
+
+    assert ordered_terms == ["machine", "learning", "computer"]
+
+
+def test_three_term_and_returns_correct_intersection(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["computer", "machine", "learning"],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_four_term_and_returns_correct_intersection(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["computing", "computational", "machine", "learning"],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_multi_term_and_with_unknown_term_is_empty(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["computer", "nonexistentterm", "search"],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+
+    assert matches == []
+
+
+def test_multi_term_and_with_single_term(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["computer"], inverted_index, document_frequency, documents
+    )
+
+    assert [document["doc_id"] for document in matches] == [1, 2]
+
+
+def test_multi_term_and_with_empty_term_list(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        [], inverted_index, document_frequency, documents
+    )
+
+    assert matches == []
+
+
+def test_multi_term_and_normalizes_query_terms(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["COMPUTER!", "MACHINE?", "LEARNING."],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+
+
+def test_multi_term_and_result_is_sorted(indexed_collection):
+    documents, inverted_index, document_frequency = indexed_collection
+
+    matches = search_and_multiple(
+        ["search", "engine"],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+    matching_ids = [document["doc_id"] for document in matches]
+
+    assert matching_ids == [1, 3]
+    assert matching_ids == sorted(matching_ids)
+
+
+def test_term_order_uses_document_frequency_without_scanning_documents(
+    indexed_collection,
+):
+    documents, _, document_frequency = indexed_collection
+
+    for document in documents.values():
+        document["text"] = ""
+
+    ordered_terms = order_terms_by_frequency(
+        ["computer", "machine", "nonexistentterm"], document_frequency
+    )
+
+    assert ordered_terms == ["nonexistentterm", "machine", "computer"]
+
+
+def test_multi_term_and_reuses_intersect_postings(indexed_collection, monkeypatch):
+    documents, inverted_index, document_frequency = indexed_collection
+    original_intersect = engine.intersect_postings
+    calls = []
+
+    def recording_intersect(postings1, postings2):
+        calls.append((list(postings1), list(postings2)))
+        return original_intersect(postings1, postings2)
+
+    monkeypatch.setattr(engine, "intersect_postings", recording_intersect)
+
+    matches = search_and_multiple(
+        ["computer", "machine", "learning"],
+        inverted_index,
+        document_frequency,
+        documents,
+    )
+
+    assert [document["doc_id"] for document in matches] == [2]
+    assert len(calls) == 2

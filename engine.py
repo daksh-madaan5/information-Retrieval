@@ -171,3 +171,50 @@ def search_not(term, inverted_index, documents):
         matching_documents.append(document)
 
     return matching_documents
+
+
+def order_terms_by_frequency(terms, document_frequency):
+    """Normalize terms and order them from lowest to highest frequency."""
+    normalized_terms = []
+
+    for term in terms:
+        query_tokens = tokenize(term)
+        if len(query_tokens) != 1:
+            raise ValueError("Each query item must be one alphanumeric term.")
+        normalized_terms.append(query_tokens[0])
+
+    normalized_terms.sort(
+        key=lambda normalized_term: document_frequency.get(normalized_term, 0)
+    )
+    return normalized_terms
+
+
+def search_and_multiple(
+    terms, inverted_index, document_frequency, documents
+):
+    """Return metadata for documents containing every supplied term."""
+    ordered_terms = order_terms_by_frequency(terms, document_frequency)
+
+    if not ordered_terms:
+        return []
+
+    for term in ordered_terms:
+        if term not in inverted_index:
+            return []
+
+    matching_ids = list(inverted_index[ordered_terms[0]])
+
+    for term in ordered_terms[1:]:
+        postings = inverted_index[term]
+        matching_ids = intersect_postings(matching_ids, postings)
+
+        if not matching_ids:
+            return []
+
+    matching_documents = []
+    for doc_id in matching_ids:
+        document = documents[doc_id].copy()
+        document["doc_id"] = doc_id
+        matching_documents.append(document)
+
+    return matching_documents
